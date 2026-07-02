@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animated Image Compressor</title>
+    <style>
+        /* --- Animated Background --- */
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* --- UI Container --- */
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 600px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            animation: slideUp 0.8s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+
+        /* --- Drag and Drop Zone --- */
+        .drop-zone {
+            border: 3px dashed #bdc3c7;
+            border-radius: 15px;
+            padding: 40px 20px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f9f9f9;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #3498db;
+            background: #ebf5fb;
+            transform: scale(1.02);
+        }
+
+        .drop-zone p {
+            margin: 0;
+            font-size: 1.1em;
+            color: #7f8c8d;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        /* --- Controls & Output --- */
+        .controls {
+            margin: 20px 0;
+            display: none; /* Hidden until image loads */
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .slider-container {
+            margin-bottom: 20px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .preview-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            gap: 15px;
+        }
+
+        .preview-box {
+            flex: 1;
+            background: #f1f2f6;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-top: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s;
+            margin-top: 20px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>✨ Image Compressor</h1>
+        <p>Fast, private, and entirely in your browser.</p>
+
+        <!-- Drop Zone -->
+        <div class="drop-zone" id="drop-zone">
+            <p>Drag & Drop an image here or <strong>click to upload</strong></p>
+            <input type="file" id="file-input" accept="image/jpeg, image/png, image/webp">
+        </div>
+
+        <!-- Controls (Hidden initially) -->
+        <div class="controls" id="controls">
+            <div class="slider-container">
+                <label for="quality">Compression Quality: <span id="quality-val">80%</span></label>
+                <input type="range" id="quality" min="0.1" max="1.0" step="0.1" value="0.8">
+            </div>
+
+            <div class="preview-container">
+                <div class="preview-box">
+                    <h3>Original</h3>
+                    <p id="original-size">0 KB</p>
+                </div>
+                <div class="preview-box">
+                    <h3>Compressed</h3>
+                    <p id="compressed-size" style="color: #27ae60; font-weight: bold;">0 KB</p>
+                </div>
+            </div>
+
+            <img id="preview-img" style="display: none;">
+            <a id="download-btn" class="btn" download="compressed-image.jpg" style="display: none;">Download Compressed Image</a>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const controls = document.getElementById('controls');
+        const qualitySlider = document.getElementById('quality');
+        const qualityVal = document.getElementById('quality-val');
+        const originalSizeTxt = document.getElementById('original-size');
+        const compressedSizeTxt = document.getElementById('compressed-size');
+        const previewImg = document.getElementById('preview-img');
+        const downloadBtn = document.getElementById('download-btn');
+
+        let currentFile = null;
+
+        // Event Listeners for Drag & Drop
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        qualitySlider.addEventListener('input', (e) => {
+            qualityVal.textContent = Math.round(e.target.value * 100) + '%';
+            if (currentFile) compressImage(currentFile, e.target.value);
+        });
+
+        // Format file size helper
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Process the uploaded file
+        function handleFile(file) {
+            if (!file.type.match(/image.*/)) {
+                alert("Please upload an image file (JPEG, PNG, WebP).");
+                return;
+            }
+            currentFile = file;
+            originalSizeTxt.textContent = formatBytes(file.size);
+            controls.style.display = 'block';
+            compressImage(file, qualitySlider.value);
+        }
+
+        // Compress using Canvas API
+        function compressImage(file, quality) {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    // Create a canvas and draw image
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                    // Compress to JPEG
+                    canvas.toBlob((blob) => {
+                        // Update UI with compressed details
+                        compressedSizeTxt.textContent = formatBytes(blob.size);
+                        
+                        // Set preview and download link
+                        const compressedUrl = URL.createObjectURL(blob);
+                        previewImg.src = compressedUrl;
+                        previewImg.style.display = 'block';
+                        
+                        downloadBtn.href = compressedUrl;
+                        // Keep original filename but append -compressed
+                        let newName = file.name.replace(/\.[^/.]+$/, "") + "-compressed.jpg";
+                        downloadBtn.download = newName;
+                        downloadBtn.style.display = 'inline-block';
+                        
+                    }, 'image/jpeg', parseFloat(quality));
+                };
+            };
+        }
+    </script>
+</body>
+</html>
